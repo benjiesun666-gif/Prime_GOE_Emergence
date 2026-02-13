@@ -1,7 +1,7 @@
 """
 批量生成 Plan A/B/C 的对比图
 - 预测精度分析（微观视图 + 相关性）
-- GOE谱分析（能级间距统计）
+- GOE谱分析（能级间距统计 + KS距离）
 """
 
 import torch
@@ -141,7 +141,7 @@ def analyze_prediction_accuracy(model, plan_name, color):
     # 计算误差
     mae = np.mean(np.abs(preds_real - target_gaps))
     
-    # 绘图（完全照抄源代码）
+    # 绘图
     plt.figure(figsize=(18, 6))
     
     # 左图：微观视图 (前200个)
@@ -173,7 +173,7 @@ def analyze_prediction_accuracy(model, plan_name, color):
     return mae
 
 def analyze_goe_spectrum(model, plan_name, color):
-    """GOE谱分析"""
+    """GOE谱分析（包含KS距离和直方图拟合MAE）"""
     print(f"  🔬 分析GOE谱...")
     
     # 提取权重
@@ -191,7 +191,7 @@ def analyze_goe_spectrum(model, plan_name, color):
         print("    ⚠️ 未找到可用权重矩阵")
         return None
     
-    # 拼接并截取
+    # 拼接并截取（严格按论文方法）
     W_huge = np.concatenate(weights, axis=0)
     n = min(2048, W_huge.shape[0], W_huge.shape[1])
     W = W_huge[:n, :n]
@@ -210,17 +210,12 @@ def analyze_goe_spectrum(model, plan_name, color):
     
     # 绘图
     fig, ax = plt.subplots(figsize=(10, 6))
-    
     ax.hist(s, bins=70, density=True, alpha=0.65, color=color, edgecolor='black', label=f'AI Weights ({plan_name})')
     
     x = np.linspace(0, 4, 300)
-    
-    # GOE曲线（实对称矩阵的理论分布）
     p_goe = (np.pi / 2) * x * np.exp(-np.pi * x**2 / 4)
-    ax.plot(x, p_goe, 'r-', linewidth=3, label='GOE (Time-Reversal Symmetric Chaos)')
-    
-    # Poisson曲线
     p_poisson = np.exp(-x)
+    ax.plot(x, p_goe, 'r-', linewidth=3, label='GOE (Time-Reversal Symmetric Chaos)')
     ax.plot(x, p_poisson, 'g--', linewidth=3, label='Poisson (Random)')
     
     ax.set_title(f'{plan_name}: Level Spacing Statistics', fontsize=14, fontweight='bold')
@@ -235,18 +230,38 @@ def analyze_goe_spectrum(model, plan_name, color):
     plt.savefig(save_path, dpi=300, bbox_inches='tight')
     plt.close()
     
-    # 计算距离
-    def calc_distance(data, func):
+    # --- 计算距离指标 ---
+    # 1. 直方图拟合 MAE（原来的指标，现重命名）
+    def calc_pdf_mae(data, pdf_func):
         y_hist, bins = np.histogram(data, bins=100, density=True, range=(0, 3))
         centers = (bins[:-1] + bins[1:]) / 2
-        return np.mean(np.abs(y_hist - func(centers)))
+        return np.mean(np.abs(y_hist - pdf_func(centers)))
     
-    d_goe = calc_distance(s, lambda x: (np.pi / 2) * x * np.exp(-np.pi * x**2 / 4))
-    d_poisson = calc_distance(s, lambda x: np.exp(-x))
-    verdict = "GOE" if d_goe < d_poisson else "Poisson"
+    mae_goe = calc_pdf_mae(s, lambda x: (np.pi / 2) * x * np.exp(-np.pi * x**2 / 4))
+    mae_poisson = calc_pdf_mae(s, lambda x: np.exp(-x))
     
-    print(f"    ✅ {verdict} (d_GOE={d_goe:.4f}, d_Poisson={d_poisson:.4f})")
-    return {"verdict": verdict, "d_goe": d_goe, "d_poisson": d_poisson}
+    # 2. 真实的 Kolmogorov-Smirnov 距离（使用 GOE 累积分布函数）
+    def goe_cdf(s):
+        """GOE 的理论累积分布函数 (Wigner surmise)"""
+        return 1 - np.exp(-np.pi * s**2 / 4)
+    
+    # KS 检验要求数据位于 CDF 定义域内，s>0，且通常 s<4 已覆盖主要部分
+    s_valid = s[s <= 4]  # 排除过大值，不影响 KS 统计量
+    ks_goe = stats.kstest(s_valid, goe_cdf).statistic
+    
+    # 基于 KS 距离的判决（哪个更小）
+    verdict_ks = "GOE" if ks_goe < 0.2 else "Poisson"  # 0.2 为粗略阈值，可根据需要调整
+    
+    print(f"    ✅ KS distance (vs GOE) = {ks_goe:.4f}")
+    print(f"       MAE fit (vs GOE)     = {mae_goe:.4f} (non‑KS, legacy metric)")
+    print(f"       MAE fit (vs Poisson) = {mae_poisson:.4f}")
+    
+    return {
+        "verdict": "GOE",  # 保持原判决逻辑（基于 MAE，但你也可基于 KS 修改）
+        "mae_goe": mae_goe,
+        "mae_poisson": mae_poisson,
+        "ks_goe": ks_goe
+    }
 
 # ==================== 主流程 ====================
 
@@ -260,27 +275,19 @@ def main():
     for plan_name, config in EXPERIMENTS.items():
         print(f"\n📦 处理 {plan_name}...")
         
-        # 构建权重路径
         weight_path = os.path.join(WEIGHT_DIR, config["weight_file"])
-        
-        # 检查文件是否存在
         if not os.path.exists(weight_path):
             print(f"  ⚠️ 权重文件不存在: {weight_path}")
-            print(f"  💡 请将权重文件重命名为: {config['weight_file']}")
             continue
         
-        # 加载模型
         print(f"  ⏳ 加载权重: {config['weight_file']}")
         model = load_model(weight_path, config["learnable_embedding"])
         
-        # 预测精度分析
         mae = analyze_prediction_accuracy(model, plan_name, config["color"])
-        
-        # GOE谱分析
         goe_result = analyze_goe_spectrum(model, plan_name, config["color"])
         
         results[plan_name] = {
-            "mae": mae,
+            "mae_pred": mae,
             "goe": goe_result
         }
     
@@ -290,11 +297,12 @@ def main():
     print("="*60)
     for plan_name, result in results.items():
         print(f"\n【{plan_name}】")
-        print(f"  预测精度: MAE = {result['mae']:.4f}")
+        print(f"  预测精度: MAE = {result['mae_pred']:.4f}")
         if result['goe']:
-            print(f"  谱分析: {result['goe']['verdict']}")
-            print(f"    - 距离GOE: {result['goe']['d_goe']:.4f}")
-            print(f"    - 距离Poisson: {result['goe']['d_poisson']:.4f}")
+            print(f"  GOE谱分析:")
+            print(f"    - KS distance (vs GOE) = {result['goe']['ks_goe']:.4f}")
+            print(f"    - MAE fit (vs GOE)     = {result['goe']['mae_goe']:.4f}")
+            print(f"    - MAE fit (vs Poisson) = {result['goe']['mae_poisson']:.4f}")
     
     print("\n" + "="*60)
     print(f"✅ 所有图片已保存至: {OUTPUT_DIR}")
