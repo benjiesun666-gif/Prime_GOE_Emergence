@@ -1,41 +1,40 @@
-# Emergent Low-Rank Structure in Neural Networks Trained on Prime Numbers
+Emergent Low-Rank Structure in Neural Networks Trained on Prime Numbers
+https://zenodo.org/badge/DOI/10.5281/zenodo.18639667.svg
 
-⚠️ **Important Update (February 2026)**:  
-This repository now contains the **refined analysis using Singular Value Decomposition (SVD)**. While the symmetrized weights of random initializations naturally follow Gaussian Orthogonal Ensemble (GOE) statistics (a known fact from random matrix theory), training can significantly alter the **original (non‑symmetrized) weight matrices**. We therefore quantify this change via three SVD‑based metrics: effective rank, the ratio of the largest to mean singular value, and the Kolmogorov–Smirnov distance to a random Gaussian baseline. This approach cleanly separates the innate randomness of initialization from the structure induced by learning.
+⚠️ Important Update (February 2026):
+This repository now contains the refined analysis using Singular Value Decomposition (SVD). While the symmetrized weights of random initializations naturally follow Gaussian Orthogonal Ensemble (GOE) statistics (a known fact from random matrix theory), training can significantly alter the original (non‑symmetrized) weight matrices. We therefore quantify this change via three SVD‑based metrics: effective rank, the ratio of the largest to mean singular value, and the Kolmogorov–Smirnov distance to a random Gaussian baseline. This approach cleanly separates the innate randomness of initialization from the structure induced by learning.
 
-## 📄 Paper
+📄 Paper
+Title: Emergent Low‑Rank Structure in Neural Networks Trained on Prime Numbers
+Author: Yunshan Yan (Lanzhou Jiaotong University)
+Contact: 20253607238@stu.lzjtu.edu.cn
 
-**Title**: Emergent Low‑Rank Structure in Neural Networks Trained on Prime Numbers  
-**Author**: Yunshan Yan (Lanzhou Jiaotong University)  
-**Contact**: 20253607238@stu.lzjtu.edu.cn  
+Current Version (v3.0 – SVD Analysis)
+Repository: This GitHub (February 2026)
 
-### Current Version (v3.0 – SVD Analysis)
-- **Repository**: This GitHub (February 2026)
-- **Key Insight**: Randomly initialized weights already exhibit GOE after symmetrization; the real signal lies in the **deviation from randomness** of the original weight matrices.
-- **Status**: Manuscript under review at Science Advances
+Key Insight: Randomly initialized weights already exhibit GOE after symmetrization; the real signal lies in the deviation from randomness of the original weight matrices.
 
-### Previous Versions
-- **v2.0 (GOE analysis)**: Archived in this repository (branch `goe-analysis`).
-- **v1.0 (GUE analysis)**: Archived on Zenodo: [10.5281/zenodo.18377560](https://doi.org/10.5281/zenodo.18377560)
+Status: Manuscript under review (revision)
 
-## 🔬 Abstract
+Previous Versions
+v2.0 (GOE analysis): Archived in this repository (branch goe-analysis).
 
+v1.0 (GUE analysis): Archived on Zenodo: 10.5281/zenodo.18377560
+
+🔬 Abstract
 We investigate how training data shapes the statistical structure of Transformer weight matrices. Using singular value decomposition (SVD), we quantify the deviation from randomness via three metrics: effective rank, the ratio of the largest to mean singular value, and the Kolmogorov–Smirnov distance to the singular value spectrum of a random Gaussian matrix. We find that randomly initialized weights already exhibit a near‑full‑rank structure (effective rank ≈ 256, max/mean ratio ≈ 2–3). Training on prime gaps to predict the next gap produces two sharply distinct outcomes: successful learning (Plans A and B) induces a strongly low‑rank structure (effective rank 27–44, max/mean ratio 106–128, KS distance ~0.9), while a model that fails to learn (Plan C) remains close to the random baseline (effective rank 199, max/mean ratio 2.8, KS distance 0.81). Extending the analysis to 11 pretrained language models reveals a wide spectrum of structural richness: some models (e.g., TinyLlama) exhibit low‑rank characteristics similar to successful prime models, whereas others stay near‑random. This establishes SVD‑based metrics as powerful tools for quantifying the information content encoded in neural network weights.
 
-## 🧪 Experimental Configurations
-
+🧪 Experimental Configurations
 We designed three complementary experiments to isolate the source of the observed structural changes. The training task is the same for all: predict the gap between consecutive primes given the prime index.
 
-| Experiment | Embedding Type | Batch Strategy | Effective Batch | Description |
-|------------|----------------|----------------|-----------------|-------------|
-| **Plan A** | Learnable | Gradient Accumulation | 2048 | Optimal training (baseline) |
-| **Plan B** | Learnable | Standard | 256 | Test batch size effect |
-| **Plan C** | Sinusoidal (Fixed) | Gradient Accumulation | 2048 | Test embedding flexibility |
+Experiment	Embedding Type	Batch Strategy	Effective Batch	Description
+Plan A	Learnable	Gradient Accumulation	2048	Optimal training (baseline)
+Plan B	Learnable	Standard	256	Test batch size effect
+Plan C	Sinusoidal (Fixed)	Gradient Accumulation	2048	Test embedding flexibility
+Configuration Details
+Plan A: Optimal Training
 
-### Configuration Details
-
-**Plan A: Optimal Training**
-```python
+python
 LEARNABLE_EMBEDDING = True
 USE_GRADIENT_ACCUMULATION = True
 PHYSICAL_BATCH_SIZE = 128
@@ -122,7 +121,7 @@ python svd_language_models_analysis.py
 # Generate random baseline
 python svd_random_baseline.py
 Reproduce Figures
-Figures are generated automatically by the analysis scripts. For the summary plot of language models, run svd_language_models_analysis.py which saves transformer_batch_analysis.png.
+Figures are generated automatically by the analysis scripts. For the summary plot of language models, run svd_language_models_analysis.py, which saves transformer_batch_analysis.png.
 
 📦 Model Weights
 Due to file size (994.8 MB each), model checkpoints are hosted on Google Drive:
@@ -139,13 +138,29 @@ All experiments were conducted on a Kaggle P100 GPU (16GB VRAM). Training logs i
 Training Details
 Dataset: First 1,000,000 primes (2 to 15,485,863)
 
-Task: Predict prime gap $p_{n+1} - p_n$ from index $n$
+Task: Predict prime gap 
+p
+n
++
+1
+−
+p
+n
+p 
+n+1
+​
+ −p 
+n
+​
+  from index 
+n
+n
 
 Model: Transformer Encoder (6 layers, 256 hidden dim, 8 heads)
 
 Optimizer: AdamW (lr=1e-4, weight decay=0.01)
 
-Duration: ~11 hours per experiment (160-325 epochs)
+Duration: ~11 hours per experiment (160–325 epochs)
 
 📧 Contact
 Yunshan Yan
@@ -163,7 +178,7 @@ bibtex
   year={2026},
   howpublished={GitHub repository},
   note={SVD analysis version; previous GOE and GUE versions archived},
-  url={https://github.com/benjiesun666-gif/Prime_GOE_Emergence}
+  url={https://github.com/benjiesun666-gif/svd-prime-grokking}
 }
 For the original GUE‑based version:
 bibtex
@@ -176,6 +191,6 @@ bibtex
   url={https://doi.org/10.5281/zenodo.18377560}
 }
 ⚖️ License
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License – see the LICENSE file for details.
 
 Last updated: February 2026
